@@ -1,4 +1,7 @@
-
+library("Seurat")
+library("slingshot")
+library("RColorBrewer")
+library("tradeSeq")
 
 
 # function: prep_seurat_for_slingshot ------------------------------------------
@@ -74,172 +77,54 @@ plot_slingshot_trajectories_per_lineage <- function(slingshot_obj){
 }
 
 
+# function: plot_slingshot_heatmap ---------------------------------------------
+# Identify temporally dynamic genes and plot heatmap
+# insert a slingshot object, the clustering used in this analysis, the selected curve genes to be plotted (eg pseudotime.curve1, pseudotime.curve2 etc)
+
+plot_slingshot_trajectories_per_lineage <- function(slingshot_obj, clustering, curve){
+  
+  # fit negative binomial GAM
+  
+  sceGAM <- fitGAM(counts = counts(slingshot_obj),
+                   sds=SlingshotDataSet(slingshot_obj))
+  
+  ## enter into the sceGAM object the clustering column name
+  clust <- colData(slingshot_obj)$clustering
+  colData(sceGAM)$clustering <- clust
+  
+  # test for dynamic expression
+  ATres <- associationTest(sceGAM)
+
+  topgenes <- rownames(ATres[order(ATres$pvalue), ])[1:100]
+  pst.ord <- order(colData(sceGAM)$slingshot$curve, na.last = NA)    
+  heatdata <- assays(sceGAM)$counts[topgenes, pst.ord]
+  heatclus <- sceGAM$clustering[pst.ord]
+  
+  tiff(filename = paste0("heatmap_", curve,".tiff"), width = 600, height = 600, units = "px")    
+  print(heatmap(log1p(heatdata),
+                Colv = NA,
+                labCol = FALSE,
+                ColSideColors = brewer.pal(11,'Spectral')[heatclus]))
+  dev.off()
+}
 
 
 
-
-
-
-
-
-
-
-
-
-
-## Identify temporally dynamic genes
-# fit negative binomial GAM
-
-sceGAM <- fitGAM(counts = counts(mut.traj),
-                 sds=SlingshotDataSet(mut.traj))
-
-## enter into the sceGAM object the RNA_snn_res.0.4 clustering
-cl.0.4 <- colData(mut.traj)$RNA_snn_res.0.4
-print(head(cl.0.4))
-colData(sceGAM)$RNA_snn_res.0.4 <- cl.0.4
-
-colnames(colData(sceGAM))     ## colData names(3): slingshot tradeSeq RNA_snn_res.0.4
-
-# test for dynamic expression
-ATres <- associationTest(sceGAM)
-
-## access slingshot results: colData(sceGAM)$slingshot or sceGAM$slingshot
-## access each curve:  print(colData(sceGAM)$slingshot$pseudotime.curve1)
-
-topgenes <- rownames(ATres[order(ATres$pvalue), ])[1:100]
-pst.ord <- order(as.numeric(as.character(colData(sceGAM)$slingshot$pseudotime.curve3)), decreasing=FALSE)    #######change curve
-heatclus <- sceGAM$RNA_snn_res.0.4[pst.ord]
-
-
-topgenes <- rownames(ATres[order(ATres$pvalue), ])[1:100]
-
-# print(head(colData(sceGAM)$slingshot))  ### the dataframe of the curves
-
-df <- colData(sceGAM)$slingshot
-cell.ord <- rownames(df[order(as.numeric(as.character(df$pseudotime.curve3))),])  ###order the cells in increasing order according to pseudotime
-
-# print(head(assays(sceGAM)$counts))
-print(class(assays(sceGAM)$counts))
-print(typeof(assays(sceGAM)$counts))
-print(is.numeric(assays(sceGAM)$counts))
-
-print(head(assays(sceGAM)$counts)[,1:4])
-
-heatdata.cell.ord <- assays(sceGAM)$counts[, cell.ord]
-print(head(heatdata.cell.ord)[,1:4])
-
-heatdata.cell.ord.gene.ord <- heatdata.cell.ord[topgenes, ]
-print(head(heatdata.cell.ord.gene.ord)[,1:4])
-
-print(head(topgenes))
-print(head(cell.ord))
-
-heatclus <- sceGAM$RNA_snn_res.0.4[cell.ord]  ###edw ena ordering
-print(head(heatclus))
-
-print(head(sceGAM))
-print(head(sceGAM$RNA_snn_res.0.4))
-
-heatclus <- sceGAM$RNA_snn_res.0.4[cell.ord]
-print(head(heatclus))
-
-
-print(head(mut.traj$RNA_snn_res.0.4))
-heatclus <- mut.traj$RNA_snn_res.0.4[cell.ord]
-print(head(heatclus))
-
-
-pst.ord <- order(as.numeric(as.character(colData(sceGAM)$slingshot$pseudotime.curve3)), decreasing=FALSE)
-heatclus <- sceGAM$RNA_snn_res.0.4[pst.ord]
-print(head(heatclus))
-
-
-topgenes <- rownames(ATres[order(ATres$pvalue), ])[1:100]
-pst.ord <- order(mut.traj$slingPseudotime_1, na.last = NA)    #######change curve
-heatdata <- assays(sceGAM)$counts[topgenes, pst.ord]
-print(head(heatdata))
-heatclus <- mut.traj$RNA_snn_res.0.4[pst.ord]
-
-
-purpleyellow <- c("#40004B", "#FFFF33")
-pal <- colorRampPalette(purpleyellow)(100)
-
-
-tiff(filename = paste0(out_path,"MYD88mut_traj_UMAP_heatmap_curve3_0.tiff"),width = 600, height = 600, units = "px")    #######change curve
-print(heatmap(log1p(heatdata.cell.ord.gene.ord),
-              col = pal,
-              labCol = FALSE,
-              ColSideColors = brewer.pal(11,'Spectral')[heatclus]))
-# print(legend(x="topleft", legend="Expression", fill=pal))
-dev.off()
-
-
-tiff(filename = paste0(out_path,"MYD88mut_traj_UMAP_heatmap_curve3_1.tiff"),width = 600, height = 600, units = "px")    #######change curve
-print(heatmap(log1p(heatdata.cell.ord.gene.ord),
-              col = pal,
-              labCol = FALSE,
-              keep.dendro = TRUE,
-              ColSideColors = brewer.pal(11,'Spectral')[heatclus]))
-# print(legend(x="topleft", legend="Expression", fill=pal))
-dev.off()
-
-
-tiff(filename = paste0(out_path,"MYD88mut_traj_UMAP_heatmap_curve3_2.tiff"),width = 600, height = 600, units = "px")    #######change curve
-print(heatmap(log1p(heatdata.cell.ord.gene.ord),
-              col = pal,
-              Rowv = NA, Colv = "Rowv",
-              labCol = FALSE,
-              ColSideColors = brewer.pal(11,'Spectral')[heatclus]))
-# print(legend(x="topleft", legend="Expression", fill=pal))
-dev.off()
-
-
-tiff(filename = paste0(out_path,"MYD88mut_traj_UMAP_heatmap_curve3_3.tiff"),width = 600, height = 600, units = "px")    #######change curve
-print(heatmap(log1p(heatdata.cell.ord.gene.ord),
-              col = pal,
-              Rowv = NA, Colv = "Rowv",
-              labCol = TRUE,
-              ColSideColors = brewer.pal(11,'Spectral')[heatclus]))
-# print(legend(x="topleft", legend="Expression", fill=pal))
-dev.off()
-
-
-pdf(paste0(out_path,"MYD88mut_traj_UMAP_heatmap_curve3_3.pdf"))    #######change curve
-print(heatmap(log1p(heatdata.cell.ord.gene.ord),
-              col = pal,
-              Rowv = NA, Colv = "Rowv",
-              labCol = TRUE,
-              ColSideColors = brewer.pal(11,'Spectral')[heatclus]))
-# print(legend(x="topleft", legend="Expression", fill=pal))
-dev.off()
-
-png(filename = paste0(out_path,"MYD88mut_traj_UMAP_heatmap_curve3.png"),width = 600, height = 600, units = "px")    #######change curve
-print(heatmap(log1p(heatdata),
-              col = pal,
-              Colv = NA,
-              labCol = FALSE,
-              ColSideColors = brewer.pal(11,'Spectral')[heatclus]))
-# print(legend(x="topleft", legend="Expression", fill=pal))
-dev.off()
-
-#####################################
-
-
-
-
-# Subset the sce object if needed
-sce <- prep_seurat_for_slingshot(integrated_sobj)
-
-mut.traj <- sce[, sce$condition == "MYD88mut"]
-
-# Trajectory Analysis using Slingshot
-mut.traj <- slingshot(mut.traj,
-                      clusterLabels = "RNA_snn_res.0.4",
-                      reducedDim = "UMAP", start.clus = 8)
-
-P <- plot_slingshot_trajectories(mut.traj)
-plot_slingshot_trajectories_per_lineage((mut.traj))
-
-
+# # Example of using the above functions:
+# 
+# # Subset the sce object if needed
+# sce <- prep_seurat_for_slingshot(integrated_sobj)
+# 
+# mut.traj <- sce[, sce$condition == "MYD88mut"]
+# 
+# # Trajectory Analysis using Slingshot
+# mut.traj <- slingshot(mut.traj,
+#                       clusterLabels = "RNA_snn_res.0.4",
+#                       reducedDim = "UMAP", start.clus = 8)
+# 
+# P <- plot_slingshot_trajectories(mut.traj)
+# plot_slingshot_trajectories_per_lineage(mut.traj)
+# 
+# plot_slingshot_trajectories_per_lineage(mut.traj, seurat_clusters, pseudotime.curve1)
 
 
