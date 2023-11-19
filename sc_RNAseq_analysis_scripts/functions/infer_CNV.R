@@ -8,7 +8,8 @@ library("ggplot2")
 # function: inferCNV_input_file_prep -------------------------------------------
 # insert the integrated seurat object for the raw_counts_matrix and annotations_file to be created
 
-enrichGO_plots <- function(integrated_samples) {
+inferCNV_input_file_prep <- function(integrated_samples) {
+  
   # Input 1: Raw counts matrix as tsv file
   write.table(as.matrix(GetAssayData(object = integrated_samples, slot = "counts")),
               'rawcountsmatrix.tsv',
@@ -24,6 +25,7 @@ enrichGO_plots <- function(integrated_samples) {
   # Input 3: gene - chromosome positions file
   # wget file: hg38_gencode_v27.txt from https://data.broadinstitute.org/Trinity/CTAT/cnv/
   # hg38.genes <- read.table("hg38_gencode_v27.txt",sep="\t")
+  
 }
 
 

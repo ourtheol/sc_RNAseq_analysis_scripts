@@ -5,23 +5,35 @@ out_path <-  ""  # the path to save the figures/objects
 
 
 
+# Initial analysis per sample -----
 source("functions/scrnaseq_initialanalysis.R")
 
 samples <- Read10x_CreateSeurat(data_path)
+
 saveRDS(samples, "./samples.rds")
 
 
-# Merge samples -----
+
+
+# Merge samples 
 # merge multiple lists of Seurat objects
+
 samples_merged <- MergeSeurat(samples_list)
+
 saveRDS(samples_merged, "./samples_merged.rds")
 
 
-# Filter samples ----
 
-print("Filtering is starting!")
 
-samples_filtered <- FilterSeurat(samples_merged, min_genes =  200, max_genes =  2500, max_mito_genes =  15, min_non_zero_cells_per_gene = 10)
+# Filter samples 
+
+message("Filtering is starting!")
+samples_filtered <- FilterSeurat(samples_merged, 
+                                 min_genes =  200, 
+                                 max_genes =  2500, 
+                                 max_mito_genes =  15, 
+                                 min_non_zero_cells_per_gene = 10)
+
 saveRDS(samples_filtered, "./samples_filtered.rds")
 
 print(table(samples_filtered$orig.ident))
@@ -38,13 +50,16 @@ samples_analyzed <- SeparateSeuratAnalysis(samples_filtered, 2000,
                                            clustering_algorithm = 2,
                                            clustering_resolution = 0.8,
                                            out_path = out_path)
+
 saveRDS(samples_analyzed, "./samples_analyzed.rds")
 
 samples_degenes_separate <- DifferentiallyExpressedGenes(seurat_analyzed = samples_analyzed, clustering = "seurat_clusters")
+
 saveRDS(samples_degenes_separate, "./samples_degenes_separate.rds")
 
 
 PrintPlots(samples_degenes_separate, out_path)
+
 
 
 
@@ -97,9 +112,24 @@ saveRDS(samples_analyzed, file = "samples_analyzed_Bcellmalignancy.rds")
 
 
 
-source("functions/bone_marrow_mapping.R")
+# Calculate proliferation indices per cluster per sample -----
+source("functions/proliferation_index.R")
+
+for (seurat in 1:length(data)) {
+  
+  message(data[[seurat]]@meta.data$orig.ident[[1]])
+  
+  pro <- proliferation_index(MYD88wt_WM0002, seurat_clusters)
+  p <- plot_proliferation_index(pro, seurat_clusters, Mitotic_index)
+}
+
+
+
 
 # Bone marrow mapping ----
+source("functions/bone_marrow_mapping.R")
+
+
 bm <- bm_reference_prep()
 
 for (i in 1:length(samples_analyzed)) {
@@ -110,29 +140,48 @@ saveRDS(samples_analyzed, file = "samples_analyzed_Bcellmalignancy_bm_mapped.rds
 
 
 
-###############################
 
-#  integration part is MISSING!!!!
+# Integration -----
+source("functions/integration.R")
 
-###############################
-
-
-
-source("functions/pseudobulk_Differential_Expression.R")
+# Available options: integration using harmony, integration using Seuratv3- default
 
 # data is a seurat object after integration
+data <- harmony.integration(samples_analyzed,
+                            n_variable_feats = 2000,
+                            clustering_algorithm = 4, #leiden clustering
+                            clustering_resolution = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2))
 
-# Remove from the analysis the imunoglobulin genes
-immunoglobulin.LC.genes <- grep("^IGL",rownames(data@assays$RNA@counts),value = TRUE)
-immunoglobulin.HC.genes <- grep("^IGH",rownames(data@assays$RNA@counts),value = TRUE)
-immunoglobulin.K.genes <- grep("^IGK",rownames(data@assays$RNA@counts),value = TRUE)
-immunoglobulin.genes <- c(immunoglobulin.LC.genes,immunoglobulin.HC.genes,immunoglobulin.K.genes)
+# OR
+# data <- seurat.integration(samples_analyzed,
+#                            npcs_integration = 30,
+#                            clustering_algorithm = 4, #leiden clustering
+#                            clustering_resolution = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2))
+
+
+
+
+# Some exploratory plots -----
+source("exploratory_plots.R")
+p <- gene_counts_per_cell_plots(data)                      
+
+
+
+
+# Pseudobulk differential expression on integrated object -----
+source("functions/pseudobulk_Differential_Expression.R")
+
+# # Remove from the analysis the immunoglobulin genes
+# immunoglobulin.LC.genes <- grep("^IGL",rownames(data@assays$RNA@counts),value = TRUE)
+# immunoglobulin.HC.genes <- grep("^IGH",rownames(data@assays$RNA@counts),value = TRUE)
+# immunoglobulin.K.genes <- grep("^IGK",rownames(data@assays$RNA@counts),value = TRUE)
+# immunoglobulin.genes <- c(immunoglobulin.LC.genes,immunoglobulin.HC.genes,immunoglobulin.K.genes)
 
 
 patients.DE.genes.to.print <- pseudobulk_differential_expession(Sobj = data, 
                                                                 condition = "neoplastic.or.healthy", 
-                                                                remove_genes = c(), 
-                                                                ident_1 = "neoplastic", ident_2 = "healthy")  ## or immunoglobulin.genes
+                                                                remove_genes = c(), ## or remove immunoglobulin.genes
+                                                                ident_1 = "neoplastic", ident_2 = "healthy")  
 
 ## Get a vector of the differentially expressed genes:
 patients.DE.genes.list <- patients.DE.genes.to.print$delabel
@@ -157,8 +206,9 @@ g <- volcano_plot_DEgenes(patients.DE.genes.to.print,
 
 
 
+
 source("functions/enrichment_analysis.R")
-patients.DE.genes.list
+
 head(patients.DE.genes.to.print)
                                                                            
 gene_set_enrichment(patients.DE.genes.list, c("GO_Biological_Process_2021","WikiPathway_2021_Human"))
@@ -168,17 +218,15 @@ enrichGO_plots(patients.DE.genes.to.print)
 
 
 
-source("functions/exploratory_plots.R")
-p <- gene_counts_per_cell_plots(MYD88wt_WM0002)
-h <- gene_counts_per_cell_plots(MYD88wt_WM0002, condition)
+
+# Infer CNV analysis -----
+# check out the following script:
+source("functions/infer_CNV.R")
 
 
-# calculate the proliferation indices on a list of seurat objects
-for (seurat in 1:length(data)) {
-  
-  message(data[[seurat]]@meta.data$orig.ident[[1]])
-  
-  pro <- proliferation_index(MYD88wt_WM0002, seurat_clusters)
-  p <- plot_proliferation_index(pro, seurat_clusters, Mitotic_index)
-}
 
+
+# Trajectory analysis -----
+# check out the following scripts:
+source("functions/trajectory_inference_Slingshot.R")
+source("functions/trajectory_inference_Monocle.R")

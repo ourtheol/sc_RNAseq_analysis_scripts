@@ -151,6 +151,11 @@ SeparateSeuratAnalysis <- function(seurat_filtered,
   require(Seurat)
   require(scran)
   require(dplyr)
+  
+  # A list of cell cycle markers, from Tirosh et al, 2015, is loaded with Seurat.  
+  # We can segregate this list into markers of G2/M phase and markers of S phase
+  s.genes <- cc.genes$s.genes
+  g2m.genes <- cc.genes$g2m.genes
 
   if (!is.list(seurat_filtered)) {
 
@@ -211,19 +216,19 @@ SeparateSeuratAnalysis <- function(seurat_filtered,
       pcs <- min(co1, co2)
       message(paste0(seurat_filtered[[seurat]]$orig.ident[[1]], "number of PCs ", pcs))
             
-      print("Executing UMAP Algorithm...")
+      message("Executing UMAP Algorithm...")
 
       seurat_filtered[[seurat]] <- Seurat::RunUMAP(seurat_filtered[[seurat]], reduction = "pca", dims = 1:pcs, verbose = F, seed.use = 1993)
 
-      print("Executing TSNE Algorithm...")
+      message("Executing TSNE Algorithm...")
 
       seurat_filtered[[seurat]] <- Seurat::RunTSNE(seurat_filtered[[seurat]], reduction = "pca", dims = 1:pcs, verbose = F, seed.use = 1993)
 
-      print("Finding Neighbors...")
+      message("Finding Neighbors...")
 
       seurat_filtered[[seurat]] <- Seurat::FindNeighbors(seurat_filtered[[seurat]], dims = 1:pcs, verbose = F)
 
-      print("Clustering...")
+      message("Clustering...")
 
       seurat_filtered[[seurat]] <- Seurat::FindClusters(seurat_filtered[[seurat]], algorithm = clustering_algorithm, resolution = clustering_resolution, verbose = F)
 
